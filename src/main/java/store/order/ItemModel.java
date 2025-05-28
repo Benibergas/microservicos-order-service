@@ -1,23 +1,18 @@
 package store.order;
 
 import jakarta.persistence.*;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import lombok.experimental.Accessors;
 
 @Entity
-@Table(name = "order_items")
-@Setter
-@Accessors(fluent = true)
-@NoArgsConstructor
+@Table(name = "item", schema = "store_order")
+@Getter @Setter @NoArgsConstructor @Accessors(fluent = true)
 public class ItemModel {
-    @Id
-    @Column(name = "id_order_item")
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
 
-    @Column(name = "id_order")
-    private String idOrder;
+    @Id
+    @Column(name = "id_item")
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private String idItem;
 
     @Column(name = "id_product")
     private String idProduct;
@@ -25,24 +20,27 @@ public class ItemModel {
     @Column(name = "quantity")
     private Integer quantity;
 
-    @Column(name = "total")
-    private Double total;
+    @Column(name = "item_price")
+    private Double itemPrice;
 
-    public ItemModel(Item a) {
-        this.id = a.id();
-        this.idOrder = a.idOrder();
-        this.idProduct = a.idProduct();
-        this.quantity = a.quantity();
-        this.total = a.total();
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_order")
+    private OrderModel order;
+
+    public ItemModel(Item source, OrderModel order) {
+        this.idItem = source.id();
+        this.idProduct = source.productId();
+        this.quantity = source.quantity();
+        this.itemPrice = source.price();
+        this.order = order;
     }
 
     public Item to() {
         return Item.builder()
-                .id(this.id)
-                .idOrder(this.idOrder)
-                .idProduct(this.idProduct)
-                .quantity(this.quantity)
-                .total(this.total)
-                .build();
+            .id(idItem)
+            .productId(idProduct)
+            .quantity(quantity)
+            .price(itemPrice)
+            .build();
     }
 }

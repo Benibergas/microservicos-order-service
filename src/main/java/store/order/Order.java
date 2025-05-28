@@ -1,20 +1,18 @@
 package store.order;
 
+import java.util.Date;
+import java.util.List;
 import lombok.Builder;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
-@Builder
 @Data
+@Builder
 @Accessors(fluent = true)
-public class Order{
+public class Order {
     private String id;
-    private String idAccount;
-    private LocalDateTime date;
-    private List<Item> items;
+    private String idUser; // melhor passar o objeto account
+    private Date date;
     private Double total;
-
+    private List<Item> items;
 }

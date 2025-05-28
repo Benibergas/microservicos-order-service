@@ -1,16 +1,14 @@
 package store.order;
 
-
 import jakarta.persistence.*;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import java.util.*;
+import java.util.stream.Collectors;
+import lombok.*;
 import lombok.experimental.Accessors;
-import org.springframework.cglib.core.Local;
-
-import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "orders")
+@Table(name = "orders", schema = "store_order")
+@Getter
 @Setter
 @Accessors(fluent = true)
 @NoArgsConstructor
@@ -19,31 +17,34 @@ public class OrderModel {
     @Id
     @Column(name = "id_order")
     @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    private String idOrder;
 
-    @Column(name = "id_account")
-    private String idAccount;
-
-    @Column(name = "order_date")
-    private LocalDateTime date;
+    @Column(name = "date")
+    private Date date;
 
     @Column(name = "total")
     private Double total;
 
-    public OrderModel(Order a) {
-        this.id = a.id();
-        this.idAccount = a.idAccount();
-        this.date = a.date();
-        this.total = a.total();
+    @Column(name = "id_user")
+    private String idUser;
+
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ItemModel> items = new ArrayList<>();
+
+    public OrderModel(Order source) {
+        this.idOrder = source.id();
+        this.idUser  = source.idUser();
+        this.date    = source.date();
+        this.total   = source.total();
     }
 
     public Order to() {
         return Order.builder()
-                .id(this.id)
-                .idAccount(this.idAccount)
-                .date(this.date)
-                .total(this.total)
+                .id(idOrder)
+                .idUser(idUser)
+                .date(date)
+                .total(total)
+                .items(items.stream().map(ItemModel::to).toList())
                 .build();
     }
-
 }

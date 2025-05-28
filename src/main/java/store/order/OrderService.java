@@ -1,15 +1,12 @@
 package store.order;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.server.ResponseStatusException;
-
-import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
+import store.product.ProductController;
+import store.product.ProductOut;
 
 @Service
 public class OrderService {
@@ -21,123 +18,72 @@ public class OrderService {
     private ItemRepository itemRepository;
 
     @Autowired
-    private RestTemplate restTemplate;
+    private ProductController productController;
 
-    private ProductOut findProductById(String id) {
-        String url = "http://product:8080/product/" + id;
-        try {
-            ResponseEntity<ProductOut> response = restTemplate.getForEntity(url, ProductOut.class);
+    public Order findByIdOrder(String idOrder, String userId) {
+        OrderModel model = orderRepository.findByIdOrderAndIdUser(idOrder, userId);
+        return model == null ? null : model.to();
+    }
 
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                return response.getBody();
-            } else {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product not found");
-            }
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product not found");
+    public List<Order> findAllByUser(String userId) {
+        return orderRepository.findAllByIdUser(userId)
+                              .stream()
+                              .map(OrderModel::to)
+                              .toList();
+    }
+
+    public Order create(Order order) {
+        order.date(new Date());
+        order.total(calculateTotal(order.items()));
+
+        OrderModel saved = orderRepository.save(new OrderModel(order));
+        persistItems(order.items(), saved);
+
+        return saved.to();
+    }
+
+    public Order update(Order order) {
+        OrderModel existing = orderRepository
+                .findByIdOrderAndIdUser(order.id(), order.idUser());
+
+        if (existing == null) return null;
+
+        existing.date(new Date());
+        existing.total(calculateTotal(order.items()));
+
+        existing.items().clear();
+        persistItems(order.items(), existing);
+
+        orderRepository.save(existing);
+        return existing.to();
+    }
+
+    public void delete(String idOrder, String userId) {
+        OrderModel existing = orderRepository.findByIdOrderAndIdUser(idOrder, userId);
+        if (existing != null) orderRepository.delete(existing);
+    }
+
+    /* ---------- helpers ---------- */
+
+    private void persistItems(List<Item> items, OrderModel order) {
+        if (items == null) return;
+
+        for (Item i : items) {
+            i.price(fetchPrice(i.productId()));
+            ItemModel im = new ItemModel(i, order);
+            order.items().add(im);
         }
     }
 
-    public OrderOut create(OrderIn orderIn, String idAccount){
-
-        if (orderIn.items() == null || orderIn.items().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order must have at least one item");
-        }
-
-        Order order = OrderParser.to(orderIn, idAccount);
-        double orderTotal = 0.0;
-
-        // Recuperar produtos e calcular totais
-        List<Item> orderItems = new ArrayList<>();
-        List<ProductOut> products = new ArrayList<>();
-
-        for (ItemIn itemIn : orderIn.items()) {
-            // Validação da quantidade
-            if (itemIn.quantity() == null || itemIn.quantity() <= 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Item quantity must be greater than zero");
-            }
-
-            ProductOut product = findProductById(itemIn.idProduct());
-            products.add(product);
-
-            double itemTotal = product.price() * itemIn.quantity();
-
-            // Criar item do pedido
-            Item orderItem = Item.builder()
-                    .idProduct(itemIn.idProduct())
-                    .quantity(itemIn.quantity())
-                    .total(itemTotal)
-                    .build();
-
-            orderItems.add(orderItem);
-            orderTotal += itemTotal;
-        }
-
-        // Definir o total do pedido
-        order.total(orderTotal);
-
-        // Salvar o pedido
-        OrderModel savedOrder = orderRepository.save(new OrderModel(order));
-        order = savedOrder.to();
-
-        // Salvar os itens do pedido
-        List<Item> savedItems = new ArrayList<>();
-        for (Item item : orderItems) {
-            item.idOrder(order.id());
-            ItemModel savedItem = itemRepository.save(new ItemModel(item));
-            savedItems.add(savedItem.to());
-        }
-
-        // Montar resposta
-        return OrderParser.to(order, savedItems, products);
+    private Double calculateTotal(List<Item> items) {
+        if (items == null) return 0.0;
+        return items.stream()
+                    .mapToDouble(i -> fetchPrice(i.productId()) * i.quantity())
+                    .sum();
     }
 
-    public List<OrderOut> findAllByAccount(String idAccount) {
-        List<OrderOut> result = new ArrayList<>();
-        for (OrderModel orderModel : orderRepository.findByIdAccount(idAccount)) {
-            Order order = orderModel.to();
-
-            List<Item> items = new ArrayList<>();
-            for (ItemModel itemModel : itemRepository.findByIdOrder(order.id())) {
-                items.add(itemModel.to());
-            }
-
-            order.items(items); // popula os itens
-
-            result.add(OrderParser.toSummary(order));
-        }
-        return result;
-    }
-
-
-    public OrderOut findByIdAndAccount(String id, String idAccount) {
-        // Buscar o pedido
-        OrderModel orderModel = orderRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
-
-        Order order = orderModel.to();
-
-        // Verificar se o pedido pertence ao usuário atual
-        if (!order.idAccount().equals(idAccount)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found");
-        }
-
-        // Buscar os itens do pedido
-        List<Item> items = new ArrayList<>();
-        for (ItemModel itemModel : itemRepository.findByIdOrder(id)) {
-            items.add(itemModel.to());
-        }
-
-        // Buscar os produtos usando RestTemplate
-        List<ProductOut> products = new ArrayList<>();
-        for (Item item : items) {
-            ProductOut product = findProductById(item.idProduct());
-            if (product != null) {
-                products.add(product);
-            }
-        }
-
-        // Montar resposta
-        return OrderParser.to(order, items, products);
+    private Double fetchPrice(String productId) {
+        ProductOut product = productController.findById(productId).getBody();
+        return product != null ? product.price() : 0.0;
     }
 }
