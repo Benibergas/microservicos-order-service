@@ -5,10 +5,10 @@ metadata:
   namespace: default
 type: Opaque
 data:
-  postgres-host: cG9zdGdyZXM=
-  postgres-db: c3RvcmU=
-  postgres-user: c3RvcmU=
-  postgres-password: NWVDcjN0
+  postgres-host: cG9zdGdyZXNxbA==  # "postgresql"
+  postgres-db: c3RvcmU=            # "store"
+  postgres-user: c3RvcmU=          # "store"
+  postgres-password: NWVDcjN0      # "5eCr3t"
   jwt-secret-key: eXJCQmdZbHZKUWVzbHpGbGdYOU1GWmNjVG9JMmZqUkZxdWFscXVlcmNvaXNh
 
 ---
